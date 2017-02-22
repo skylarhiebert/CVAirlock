@@ -1,0 +1,113 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>SpaceEngineers.ObjectBuilders</name>
+    </assembly>
+    <members>
+        <member name="F:Sandbox.Common.ObjectBuilders.Definitions.MyObjectBuilder_AdvancedDoorDefinition.Opening.MaxOpen">
+            <summary>
+            For Sliding Parts = value in meter
+            For Rotating Parts = value in Degrees
+            </summary>
+        </member>
+        <member name="F:Sandbox.Common.ObjectBuilders.Definitions.MyObjectBuilder_AdvancedDoorDefinition.Opening.PivotPosition">
+            <summary>
+            override the Pivot/Hinge for this opening
+            will be read from Model if not defined
+            </summary>
+        </member>
+        <member name="F:Sandbox.Common.ObjectBuilders.Definitions.MyObjectBuilder_AdvancedDoorDefinition.SubpartDefinition.Name">
+            <summary>
+            Name of the Subpart Model without extension i.e.:
+            "DoorLeft" will be "path/to/model/DoorLeft.mwm"
+            </summary>
+        </member>
+        <member name="F:Sandbox.Common.ObjectBuilders.Definitions.MyObjectBuilder_AdvancedDoorDefinition.SubpartDefinition.PivotPosition">
+            <summary>
+            define the Pivot/Hinge position for this Subpart
+            will be read from Model if not defined
+            </summary>
+        </member>
+        <member name="F:Sandbox.Common.ObjectBuilders.Definitions.MyObjectBuilder_OxygenContainerObject.OxygenLevel">
+            <summary>
+            This is not synced automatically
+            Call SyncOxygenContainerLevel on inventory to sync it
+            </summary>
+        </member>
+        <member name="T:SpaceEngineers.ObjectBuilders.Definitions.MyUpgradeModifierType">
+            <summary>
+            Upgrade modifier type
+            </summary>
+        </member>
+        <member name="F:SpaceEngineers.ObjectBuilders.Definitions.MyUpgradeModifierType.Multiplicative">
+            <summary>
+            Multiplies base value of block - to increase value by 50% set <see cref="P:SpaceEngineers.ObjectBuilders.Definitions.MyUpgradeModuleInfo.Modifier"/> to 1.5
+            </summary>
+        </member>
+        <member name="F:SpaceEngineers.ObjectBuilders.Definitions.MyUpgradeModifierType.Additive">
+            <summary>
+            Adds to base value of block - to increase value by 50% set <see cref="P:SpaceEngineers.ObjectBuilders.Definitions.MyUpgradeModuleInfo.Modifier"/> to 0.5
+            </summary>
+        </member>
+        <member name="T:SpaceEngineers.ObjectBuilders.Definitions.MyUpgradeModuleInfo">
+            <summary>
+            Module upgrade information
+            </summary>
+        </member>
+        <member name="P:SpaceEngineers.ObjectBuilders.Definitions.MyUpgradeModuleInfo.UpgradeType">
+            <summary>
+            Name of upgrade
+            </summary>
+        </member>
+        <member name="P:SpaceEngineers.ObjectBuilders.Definitions.MyUpgradeModuleInfo.Modifier">
+            <summary>
+            Modifier for upgrade (as decimal - 1 = 100%)
+            </summary>
+        </member>
+        <member name="P:SpaceEngineers.ObjectBuilders.Definitions.MyUpgradeModuleInfo.ModifierType">
+            <summary>
+            Type of modifier as <see cref="T:SpaceEngineers.ObjectBuilders.Definitions.MyUpgradeModifierType"/>
+            </summary>
+        </member>
+        <member name="T:SpaceEngineers.ObjectBuilders.Definitions.MyObjectBuilder_UpgradeModuleDefinition">
+            <summary>
+            Upgrade module base definition
+            </summary>
+        </member>
+        <member name="F:SpaceEngineers.ObjectBuilders.Definitions.MyObjectBuilder_UpgradeModuleDefinition.Upgrades">
+            <summary>
+            List of upgrades provided by block <see cref="T:SpaceEngineers.ObjectBuilders.Definitions.MyUpgradeModuleInfo"/>
+            </summary>
+        </member>
+        <member name="P:Sandbox.Common.ObjectBuilders.MyObjectBuilder_ProductionBlock.Inventory">
+            <summary>
+            Don't use. Backward compatibility only. Use InputInventory and OutputInventory instead.
+            </summary>
+        </member>
+        <member name="F:Sandbox.Common.ObjectBuilders.MyObjectBuilder_RemoteControl.Coords">
+            <summary>
+            Obsolete. Use Waypoints instead.
+            </summary>
+        </member>
+        <member name="F:Sandbox.Common.ObjectBuilders.MyObjectBuilder_RemoteControl.Names">
+            <summary>
+            Obsolete. Use Waypoints instead.
+            </summary>
+        </member>
+        <member name="F:Sandbox.Common.ObjectBuilders.MyObjectBuilder_RemoteControl.AutoPilotToolbar">
+            <summary>
+            Obsolete. Use Waypoints instead.
+            </summary>
+        </member>
+        <member name="F:Sandbox.Common.ObjectBuilders.MyObjectBuilder_ShipConnector.Connected">
+            <summary>
+            When ConnectedEntityId is not null, this tells whether the connection is only approach (yellow) or locked connection (green)
+            </summary>
+        </member>
+        <member name="F:Sandbox.Common.ObjectBuilders.MyObjectBuilder_ShipConnector.MasterToSlaveTransform">
+            <summary>
+            Master is connector with higher EntityId
+            </summary>
+        </member>
+    </members>
+</doc>
