@@ -19,34 +19,6 @@ namespace SpaceEngineers
 {
     public sealed class Program : MyGridProgram
     {
-        //=======================================================================
-        //////////////////////////BEGIN//////////////////////////////////////////
-        //=======================================================================
-
-        public Program()
-        {
-
-            // The constructor, called only once every session and 
-            // always before any other method is called. Use it to 
-            // initialize your script.  
-            //      
-            // The constructor is optional and can be removed if not 
-            // needed.
-
-        }
-
-        public void Save()
-        {
-
-            // Called when the program needs to save its state. Use 
-            // this method to save your state to the Storage field 
-            // or some other means.  
-            //  
-            // This method is optional and can be removed if not 
-            // needed.
-
-        }
-
         public void Main(string argument)
         {
             // The main entry point of the script, invoked every time 
@@ -58,6 +30,7 @@ namespace SpaceEngineers
             if (argument == null || argument == "")
             {
                 // Run Update
+                // MUST HAVE AIRLOCK
             }
             else
             {
@@ -71,19 +44,19 @@ namespace SpaceEngineers
                 switch (command.ToLower())
                 {
                     case "pressurize":
-                        AirLockPressurized(airlock);
+                        al.Pressurize();
                         break;
                     case "depressurize":
-                        AirLockDepressurized(airlock);
+                        al.Depressurize();
                         break;
                     case "pressurized":
-                        PressurizeAirlock(airlock);
+                        al.Pressurized();
                         break;
                     case "depressurized":
-                        DepressurizeAirlock(airlock);
+                        al.Depressurized();
                         break;
                     default:
-                        // Do the auto-detect
+                        al.Update();
                         break;
                 }
             }
@@ -91,9 +64,17 @@ namespace SpaceEngineers
 
         public class CVAirlock
         {
+            public static int DOOR_DELAY = 10;
+            public static int VENT_DELAY = 5;
+            public static string PRESSURIZED = "pressurized";
+            public static string DEPRESSURIZED = "depressurized";
+            public static string PRESSURIZING = "pressurizing";
+            public static string DEPRESSURIZING = "depressurizing";
+
             private IMyGridTerminalSystem _grid;
             string Airlock;
             List<IMyAirVent> ControlAirVents = new List<IMyAirVent>();
+            IMyTimerBlock timer = null;
 
             List<IMyDoor> InnerDoors = new List<IMyDoor>();
             List<IMySoundBlock> InnerSoundBlocks = new List<IMySoundBlock>();
@@ -109,11 +90,15 @@ namespace SpaceEngineers
             {
                 _grid = GridTerminalSystem;
                 Airlock = airlock;
-                IMyBlockGroup controlBg = _grid.GetBlockGroupWithName("Airlock Control: " + airlock);
-                IMyBlockGroup innerBg = _grid.GetBlockGroupWithName("Airlock Inner: " + airlock);
-                IMyBlockGroup outerBg = _grid.GetBlockGroupWithName("Airlock Outer: " + airlock);
+                IMyBlockGroup controlBg = _grid.GetBlockGroupWithName("Airlock Control: " + Airlock);
+                IMyBlockGroup innerBg = _grid.GetBlockGroupWithName("Airlock Inner: " + Airlock);
+                IMyBlockGroup outerBg = _grid.GetBlockGroupWithName("Airlock Outer: " + Airlock);
 
                 controlBg.GetBlocksOfType<IMyAirVent>(ControlAirVents);
+
+                List<IMyTimerBlock> timers = new List<IMyTimerBlock>();
+                controlBg.GetBlocksOfType<IMyTimerBlock>(timers);
+                timer = timers.FirstOrDefault();
 
                 innerBg.GetBlocksOfType<IMyDoor>(InnerDoors);
                 innerBg.GetBlocksOfType<IMySoundBlock>(InnerSoundBlocks);
@@ -126,9 +111,26 @@ namespace SpaceEngineers
                 outerBg.GetBlocksOfType<IMyLightingBlock>(OuterLights);
             }
 
+            public void Update()
+            {
+                if (ControlAirVents.Any(vent => vent.CustomData == PRESSURIZING && vent.GetOxygenLevel() > 0.9))
+                {
+                    Pressurized();
+                } else if (ControlAirVents.Any(vent => vent.CustomData == PRESSURIZED && vent.GetOxygenLevel() > 0.9))
+                {
+                    Depressurize();
+                } else if (ControlAirVents.Any(vent => vent.CustomData == DEPRESSURIZING && vent.GetOxygenLevel() < 0.1))
+                {
+                    Depressurized();
+                } else if (ControlAirVents.Any(vent => vent.CustomData == DEPRESSURIZED && vent.GetOxygenLevel() < 0.1))
+                {
+                    Pressurize();
+                }
+            }
+
             public void Pressurize()
             {
-                if(ControlAirVents.All(vent => vent.CustomData == "pressurized"))
+                if (ControlAirVents.All(vent => vent.CustomData == PRESSURIZED))
                 {
                     Pressurized();
                     return;
@@ -140,13 +142,15 @@ namespace SpaceEngineers
                 // Set AirVent to Pressurize, set CustomData to Pressurizing
                 DepressurizeAirVents(ControlAirVents, false);
 
+                timer.TriggerDelay = VENT_DELAY;
+                timer.StartCountdown();
             }
 
             public void Pressurized()
             {
                 foreach (IMyAirVent vent in ControlAirVents)
                 {
-                    vent.CustomData = "pressurized";
+                    vent.CustomData = PRESSURIZED;
                 }
 
                 DisableSiren(OuterSoundBlocks.Concat(InnerSoundBlocks));
@@ -155,14 +159,16 @@ namespace SpaceEngineers
 
                 LockDoors(OuterDoors);
                 OpenDoors(InnerDoors);
-                // Start Timer
+
+                timer.TriggerDelay = DOOR_DELAY;
+                timer.StartCountdown();
             }
 
             public void Depressurize()
             {
-                if (ControlAirVents.All(vent => vent.CustomData == "depressurized"))
+                if (ControlAirVents.All(vent => vent.CustomData == DEPRESSURIZED))
                 {
-                    Pressurized();
+                    Depressurized();
                     return;
                 }
 
@@ -171,13 +177,16 @@ namespace SpaceEngineers
 
                 // Set AirVent to Pressurize, set CustomData to Pressurizing
                 DepressurizeAirVents(ControlAirVents, true);
+
+                timer.TriggerDelay = VENT_DELAY;
+                timer.StartCountdown();
             }
 
             public void Depressurized()
             {
-                foreach(IMyAirVent vent in ControlAirVents)
+                foreach (IMyAirVent vent in ControlAirVents)
                 {
-                    vent.CustomData = "depressurized";
+                    vent.CustomData = DEPRESSURIZED;
                 }
 
                 DisableSiren(OuterSoundBlocks.Concat(InnerSoundBlocks));
@@ -186,7 +195,9 @@ namespace SpaceEngineers
 
                 LockDoors(InnerDoors);
                 OpenDoors(OuterDoors);
-                // Start Timer
+
+                timer.TriggerDelay = DOOR_DELAY;
+                timer.StartCountdown();
             }
 
             public void ToggleAirlock()
@@ -289,7 +300,7 @@ namespace SpaceEngineers
                 foreach (IMyAirVent vent in vents)
                 {
                     vent.Depressurize = depressurize;
-                    vent.CustomData = depressurize ? "depressurizing" : "pressurizing";
+                    vent.CustomData = depressurize ? DEPRESSURIZING : PRESSURIZING;
                 }
             }
         }
