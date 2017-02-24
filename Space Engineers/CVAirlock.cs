@@ -54,266 +54,244 @@ namespace SpaceEngineers
             //  
             // The method itself is required, but the argument above 
             // can be removed if not needed.
-            string[] arguments = argument.Split(':');
-            var airlock = arguments.ElementAtOrDefault(0);
-            var command = arguments.ElementAtOrDefault(1);
 
-            CVAirlock al = new CVAirlock(airlock);
-
-            Echo("Running " + command + " on " + airlock);
-            switch (command.ToLower())
+            if (argument == null || argument == "")
             {
-                case "pressurize":
-                    AirLockPressurized(airlock);
-                    break;
-                case "depressurize":
-                    AirLockDepressurized(airlock);
-                    break;
-                case "pressurized":
-                    PressurizeAirlock(airlock);
-                    break;
-                case "depressurized":
-                    DepressurizeAirlock(airlock);
-                    break;
-                default:
-                    // Do the auto-detect
-                    break;
+                // Run Update
+            }
+            else
+            {
+                string[] arguments = argument.Split(':');
+                var airlock = arguments.ElementAtOrDefault(0);
+                var command = arguments.ElementAtOrDefault(1);
+
+                CVAirlock al = new CVAirlock(GridTerminalSystem, airlock);
+
+                Echo("Running " + command + " on " + airlock);
+                switch (command.ToLower())
+                {
+                    case "pressurize":
+                        AirLockPressurized(airlock);
+                        break;
+                    case "depressurize":
+                        AirLockDepressurized(airlock);
+                        break;
+                    case "pressurized":
+                        PressurizeAirlock(airlock);
+                        break;
+                    case "depressurized":
+                        DepressurizeAirlock(airlock);
+                        break;
+                    default:
+                        // Do the auto-detect
+                        break;
+                }
             }
         }
 
         public class CVAirlock
         {
+            private IMyGridTerminalSystem _grid;
             string Airlock;
-            List<IMyAirVent> AirVents = new List<IMyAirVent>();
+            List<IMyAirVent> ControlAirVents = new List<IMyAirVent>();
 
             List<IMyDoor> InnerDoors = new List<IMyDoor>();
             List<IMySoundBlock> InnerSoundBlocks = new List<IMySoundBlock>();
             List<IMyTextPanel> InnerTextPanels = new List<IMyTextPanel>();
-            List<IMyInteriorLight> InnerLights = new List<IMyInteriorLight>();
+            List<IMyLightingBlock> InnerLights = new List<IMyLightingBlock>();
 
             List<IMyDoor> OuterDoors = new List<IMyDoor>();
             List<IMySoundBlock> OuterSoundBlocks = new List<IMySoundBlock>();
             List<IMyTextPanel> OuterTextPanels = new List<IMyTextPanel>();
-            List<IMyInteriorLight> OuterLights = new List<IMyInteriorLight>();
+            List<IMyLightingBlock> OuterLights = new List<IMyLightingBlock>();
 
-            public CVAirlock(string airlock)
+            public CVAirlock(IMyGridTerminalSystem GridTerminalSystem, string airlock)
             {
+                _grid = GridTerminalSystem;
                 Airlock = airlock;
+                IMyBlockGroup controlBg = _grid.GetBlockGroupWithName("Airlock Control: " + airlock);
+                IMyBlockGroup innerBg = _grid.GetBlockGroupWithName("Airlock Inner: " + airlock);
+                IMyBlockGroup outerBg = _grid.GetBlockGroupWithName("Airlock Outer: " + airlock);
+
+                controlBg.GetBlocksOfType<IMyAirVent>(ControlAirVents);
+
+                innerBg.GetBlocksOfType<IMyDoor>(InnerDoors);
+                innerBg.GetBlocksOfType<IMySoundBlock>(InnerSoundBlocks);
+                innerBg.GetBlocksOfType<IMyTextPanel>(InnerTextPanels);
+                innerBg.GetBlocksOfType<IMyLightingBlock>(InnerLights);
+
+                outerBg.GetBlocksOfType<IMyDoor>(OuterDoors);
+                outerBg.GetBlocksOfType<IMySoundBlock>(OuterSoundBlocks);
+                outerBg.GetBlocksOfType<IMyTextPanel>(OuterTextPanels);
+                outerBg.GetBlocksOfType<IMyLightingBlock>(OuterLights);
+            }
+
+            public void Pressurize()
+            {
+                if(ControlAirVents.All(vent => vent.CustomData == "pressurized"))
+                {
+                    Pressurized();
+                    return;
+                }
+
+                UnlockDoors(InnerDoors);
+                PrepareAirlock();
+
+                // Set AirVent to Pressurize, set CustomData to Pressurizing
+                DepressurizeAirVents(ControlAirVents, false);
+
+            }
+
+            public void Pressurized()
+            {
+                foreach (IMyAirVent vent in ControlAirVents)
+                {
+                    vent.CustomData = "pressurized";
+                }
+
+                DisableSiren(OuterSoundBlocks.Concat(InnerSoundBlocks));
+                SetLightProperties(OuterLights, Color.Green, 1f, 0f, 0f, 0f);
+                SetLightProperties(InnerLights, Color.Orange, 1f, 0f, 0f, 0f);
+
+                LockDoors(OuterDoors);
+                OpenDoors(InnerDoors);
+                // Start Timer
+            }
+
+            public void Depressurize()
+            {
+                if (ControlAirVents.All(vent => vent.CustomData == "depressurized"))
+                {
+                    Pressurized();
+                    return;
+                }
+
+                UnlockDoors(OuterDoors);
+                PrepareAirlock();
+
+                // Set AirVent to Pressurize, set CustomData to Pressurizing
+                DepressurizeAirVents(ControlAirVents, true);
+            }
+
+            public void Depressurized()
+            {
+                foreach(IMyAirVent vent in ControlAirVents)
+                {
+                    vent.CustomData = "depressurized";
+                }
+
+                DisableSiren(OuterSoundBlocks.Concat(InnerSoundBlocks));
+                SetLightProperties(OuterLights, Color.Green, 1f, 0f, 0f, 0f);
+                SetLightProperties(InnerLights, Color.Orange, 1f, 0f, 0f, 0f);
+
+                LockDoors(InnerDoors);
+                OpenDoors(OuterDoors);
+                // Start Timer
             }
 
             public void ToggleAirlock()
             {
-                if (AirVents.Any(vent => vent.Depressurize) && AirVents.Any(vent => vent.CustomData.ToLower() == "depressurized") )
-                {
+                //if (AirVents.Any(vent => vent.Depressurize) && AirVents.Any(vent => vent.CustomData.ToLower() == "depressurized"))
+                //{
+                //    var bg = GridTerminalSystem.GetBlockGroupWithName("foo");
+                //    bg.GetBlocksOfType<IMyDoor>(InnerDoors, delegate (IMyTerminalBlock block) { return (block.)})
 
+                //}
+            }
+
+            public void PrepareAirlock()
+            {
+                // Close all doors                
+                CloseDoors(OuterDoors.Concat(InnerDoors));
+
+                // Enable Siren
+                EnableSiren(OuterSoundBlocks);
+
+                // Set Warning Lights to COLOR
+                SetLightProperties(OuterLights.Concat(InnerLights), Color.Red, 1f, 1f, 0f, 0f);
+            }
+
+            public void UnlockDoors(IEnumerable<IMyDoor> doors)
+            {
+                foreach (IMyDoor door in doors)
+                {
+                    door.ApplyAction("OnOff_On");
                 }
             }
-            
-        }
 
-        public void CloseDoors(List<IMyTerminalBlock> doors)
-        {
-            Echo("Closing " + doors.Count + " Doors");
-            for (int i = 0; i < doors.Count; i++)
+            public void LockDoors(IEnumerable<IMyDoor> doors)
             {
-                IMyDoor door = doors[i] as IMyDoor;
-                door.ApplyAction("Open_Off");
+                foreach (IMyDoor door in doors)
+                {
+                    //Echo("Closing door: " + door.Name);
+                    door.ApplyAction("OnOff_Off");
+                }
             }
-        }
 
-        public void OpenDoors(List<IMyTerminalBlock> doors)
-        {
-            Echo("Opening " + doors.Count + " Doors");
-            for (int i = 0; i < doors.Count; i++)
+            public void OpenDoors(IEnumerable<IMyDoor> doors)
             {
-                IMyDoor door = doors[i] as IMyDoor;
-                door.GetActionWithName("Open_On").Apply(door);
+                foreach (IMyDoor door in doors)
+                {
+                    door.ApplyAction("Open_On");
+                }
             }
-        }
 
-        public void LockDoors(List<IMyTerminalBlock> doors)
-        {
-            Echo("Locking " + doors.Count + " Doors");
-            for (int i = 0; i < doors.Count; i++)
+            public void CloseDoors(IEnumerable<IMyDoor> doors)
             {
-                IMyDoor door = doors[i] as IMyDoor;
-                door.ApplyAction("OnOff_Off");
+                foreach (IMyDoor door in doors)
+                {
+                    door.ApplyAction("Open_Off");
+                }
             }
-        }
 
-        public void UnlockDoors(List<IMyTerminalBlock> doors)
-        {
-            Echo("Unlocking " + doors.Count + " Doors");
-            for (int i = 0; i < doors.Count; i++)
+            public void EnableSiren(IEnumerable<IMySoundBlock> soundBlocks)
             {
-                IMyDoor door = doors[i] as IMyDoor;
-                door.ApplyAction("OnOff_On");
-            }
-        }
+                foreach (IMySoundBlock soundBlock in soundBlocks)
+                {
+                    if (!soundBlock.IsSoundSelected)
+                    {
+                        soundBlock.SelectedSound = "warning 2";
+                    }
 
-        public void SetLightColor(List<IMyTerminalBlock> lights, Color color)
-        {
-            Echo("Setting " + lights.Count + " Lights to " + color);
-            for (int i = 0; i < lights.Count; i++)
+                    soundBlock.ApplyAction("PlaySound");
+                }
+            }
+
+            public void DisableSiren(IEnumerable<IMySoundBlock> soundBlocks)
             {
-                IMyInteriorLight light = lights[i] as IMyInteriorLight;
-                light.SetValue("Color", color);
+                foreach (IMySoundBlock soundBlock in soundBlocks)
+                {
+                    soundBlock.ApplyAction("PlaySound");
+                }
             }
-        }
 
-        public void PressurizeAirlock(string airlock)
-        {
-            Echo("Pressurizing Airlock " + airlock);
-            List<IMyTerminalBlock> ExternalDoors = new List<IMyTerminalBlock>();
-            List<IMyTerminalBlock> InternalDoors = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Door Internal", InternalDoors);
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Door External", ExternalDoors);
-
-            IMyAirVent AirVent = GridTerminalSystem.GetBlockWithName(airlock + " Airlock Air Vent") as IMyAirVent;
-
-            UnlockDoors(InternalDoors);
-            CloseDoors(ExternalDoors);
-            CloseDoors(InternalDoors);
-
-            // Sound On
-            Echo("Enabling Siren");
-            IMySoundBlock warningSiren;
-            warningSiren = GridTerminalSystem.GetBlockWithName(airlock + " Airlock Sound Block") as IMySoundBlock;
-            if (warningSiren.IsSoundSelected) { warningSiren.ApplyAction("PlaySound"); }
-            else { Echo("No Sound Selected"); }
-
-            // Warning Light On
-            Echo("Turning on Warning Light");
-            IMyInteriorLight warningLight;
-            warningLight = GridTerminalSystem.GetBlockWithName(airlock + " Airlock Light Pressurizing") as IMyInteriorLight;
-            warningLight.ApplyAction("OnOff_On");
-
-            // All Lights Red
-            Echo("Setting all lights to Red");
-            List<IMyTerminalBlock> InteriorLights = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Light Interior", InteriorLights);
-            List<IMyTerminalBlock> ExteriorLights = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Light Exterior", ExteriorLights);
-            SetLightColor(InteriorLights, Color.Red);
-            SetLightColor(ExteriorLights, Color.Red);
-
-            Echo("Setting Airvent to Pressurize");
-            AirVent.ApplyAction("Depressurize_Off");
-            if (AirVent.GetOxygenLevel() >= 1)
+            public void SetLightProperties(IEnumerable<IMyLightingBlock> lights, Color color, float intensity, float blinkInterval, float blinkLength, float blinkOffset)
             {
-                AirLockPressurized(airlock);
+                foreach (IMyLightingBlock light in lights)
+                {
+                    light.Color = color;
+                    light.Intensity = intensity;
+                    light.BlinkIntervalSeconds = blinkInterval;
+                    light.BlinkLength = blinkLength;
+                    light.BlinkOffset = blinkOffset;
+                }
             }
-        }
-
-        public void DepressurizeAirlock(string airlock)
-        {
-            Echo("Depressurizing " + airlock + " Airlock");
-            List<IMyTerminalBlock> ExternalDoors = new List<IMyTerminalBlock>();
-            List<IMyTerminalBlock> InternalDoors = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Door Internal", InternalDoors);
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Door External", ExternalDoors);
-
-            IMyAirVent AirVent = GridTerminalSystem.GetBlockWithName(airlock + " Airlock Air Vent") as IMyAirVent;
-
-            UnlockDoors(ExternalDoors);
-            CloseDoors(InternalDoors);
-            CloseDoors(ExternalDoors);
-
-            // Sound On 
-            Echo("Turning On Warning Siren");
-            IMySoundBlock warningSiren;
-            warningSiren = GridTerminalSystem.GetBlockWithName(airlock + " Airlock Sound Block") as IMySoundBlock;
-            if (warningSiren.IsSoundSelected) { warningSiren.ApplyAction("PlaySound"); }
-            else { Echo("No Sound Selected"); }
-
-            // Warning Light On 
-            Echo("Turning On Warning Light");
-            IMyInteriorLight warningLight;
-            warningLight = GridTerminalSystem.GetBlockWithName(airlock + " Airlock Light Pressurizing") as IMyInteriorLight;
-            warningLight.ApplyAction("OnOff_On");
-
-            // All Lights Red 
-            Echo("Enabling All Lock Lights");
-            List<IMyTerminalBlock> InteriorLights = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Light Interior", InteriorLights);
-            List<IMyTerminalBlock> ExteriorLights = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Light Exterior", ExteriorLights);
-            SetLightColor(InteriorLights, Color.Red);
-            SetLightColor(ExteriorLights, Color.Red);
-
-            Echo("Setting to Depressurize");
-            AirVent.ApplyAction("Depressurize_On");
-            if (!(AirVent.GetOxygenLevel() > 0))
+            public void SetLightColor(IEnumerable<IMyLightingBlock> lights, Color color)
             {
-                AirLockDepressurized(airlock);
+                foreach (IMyLightingBlock light in lights)
+                {
+                    light.SetValue("Color", color);
+                }
             }
-        }
 
-        public void AirLockPressurized(string airlock)
-        {
-            List<IMyTerminalBlock> ExternalDoors = new List<IMyTerminalBlock>();
-            List<IMyTerminalBlock> InternalDoors = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Door Internal", InternalDoors);
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Door External", ExternalDoors);
-
-            // Sound Off
-            IMySoundBlock warningSiren;
-            warningSiren = GridTerminalSystem.GetBlockWithName(airlock + " Airlock Sound Block") as IMySoundBlock;
-            warningSiren.ApplyAction("StopSound");
-
-            // Warning Light Off
-            IMyInteriorLight warningLight;
-            warningLight = GridTerminalSystem.GetBlockWithName(airlock + " Airlock Light Pressurizing") as IMyInteriorLight;
-            warningLight.ApplyAction("OnOff_Off");
-
-            // Internal Doors Lights Green
-            List<IMyTerminalBlock> InteriorLights = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Light Interior", InteriorLights);
-            SetLightColor(InteriorLights, Color.Green);
-
-            // External Door Lights Red
-            List<IMyTerminalBlock> ExteriorLights = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Light Exterior", ExteriorLights);
-            SetLightColor(ExteriorLights, Color.Red);
-
-            LockDoors(ExternalDoors);
-            OpenDoors(InternalDoors);
-
-            IMyTimerBlock timer = GridTerminalSystem.GetBlockWithName("Airlock Timer Block Close") as IMyTimerBlock;
-            timer.ApplyAction("Start");
-        }
-
-        public void AirLockDepressurized(string airlock)
-        {
-            List<IMyTerminalBlock> ExternalDoors = new List<IMyTerminalBlock>();
-            List<IMyTerminalBlock> InternalDoors = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Door Internal", InternalDoors);
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Door External", ExternalDoors);
-
-            // Sound Off 
-            IMySoundBlock warningSiren;
-            warningSiren = GridTerminalSystem.GetBlockWithName(airlock + " Airlock Sound Block") as IMySoundBlock;
-            warningSiren.ApplyAction("StopSound");
-
-            // Warning Light Off 
-            IMyInteriorLight warningLight;
-            warningLight = GridTerminalSystem.GetBlockWithName(airlock + " Airlock Light Pressurizing") as IMyInteriorLight;
-            warningLight.ApplyAction("OnOff_Off");
-
-            // Internal Doors Lights Red
-            List<IMyTerminalBlock> InteriorLights = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Light Interior", InteriorLights);
-            SetLightColor(InteriorLights, Color.Red);
-
-            // External Door Lights Green
-            List<IMyTerminalBlock> ExteriorLights = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(airlock + " Airlock Light Exterior", ExteriorLights);
-            SetLightColor(ExteriorLights, Color.Green);
-
-            LockDoors(InternalDoors);
-            OpenDoors(ExternalDoors);
-            IMyTimerBlock timer = GridTerminalSystem.GetBlockWithName("Airlock Timer Block Close") as IMyTimerBlock;
-            timer.ApplyAction("Start");
+            public void DepressurizeAirVents(IEnumerable<IMyAirVent> vents, bool depressurize)
+            {
+                foreach (IMyAirVent vent in vents)
+                {
+                    vent.Depressurize = depressurize;
+                    vent.CustomData = depressurize ? "depressurizing" : "pressurizing";
+                }
+            }
         }
 
         //=======================================================================
